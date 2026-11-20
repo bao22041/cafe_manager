@@ -6,9 +6,6 @@ const { Server } = require('socket.io');
 const dotenv = require('dotenv');
 const path = require('path');
 
-// ========================================
-// 1. LOAD ENVIRONMENT
-// ========================================
 
 dotenv.config({
     path: path.resolve(__dirname, '.env'),
@@ -20,18 +17,10 @@ dotenv.config({
     override: false
 });
 
-// ========================================
-// 2. IMPORT PROJECT MODULES
-// ========================================
-
 const db = require('./config/db');
 const routes = require('./routes');
 const socketManager = require('./sockets/socketManager');
 const errorMiddleware = require('./middlewares/errorMiddleware');
-
-// ========================================
-// 3. INITIALIZE EXPRESS
-// ========================================
 
 const app = express();
 const server = http.createServer(app);
@@ -39,10 +28,6 @@ const server = http.createServer(app);
 app.set('trust proxy', 1);
 
 app.disable('x-powered-by');
-
-// ========================================
-// 4. CORS CONFIGURATION
-// ========================================
 
 const frontendOrigins = (
     process.env.FRONTEND_URL ||
@@ -57,8 +42,6 @@ const allowAllOrigins = frontendOrigins.includes('*');
 const corsOptions = {
     origin: (origin, callback) => {
 
-        // Cho phép request không có Origin
-        // như health check hoặc server-to-server.
         if (!origin) {
             return callback(null, true);
         }
@@ -89,9 +72,6 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// ========================================
-// 5. BODY PARSER
-// ========================================
 
 app.use(express.json({
     limit: '10mb'
@@ -102,9 +82,6 @@ app.use(express.urlencoded({
     limit: '10mb'
 }));
 
-// ========================================
-// 6. SOCKET.IO CONFIGURATION
-// ========================================
 
 const io = new Server(server, {
     cors: {
@@ -134,11 +111,6 @@ app.set('io', io);
 
 socketManager(io);
 
-// ========================================
-// 7. HEALTH CHECK
-// ========================================
-
-// Kiểm tra server có hoạt động không.
 app.get('/health', (req, res) => {
     res.status(200).json({
         success: true,
@@ -148,7 +120,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Kiểm tra kết nối database.
 const databaseHealthCheck = async (req, res) => {
     try {
         await db.query('SELECT 1');
@@ -173,18 +144,9 @@ const databaseHealthCheck = async (req, res) => {
 
 app.get('/api/health', databaseHealthCheck);
 
-// Giữ endpoint cũ để tương thích với các công cụ test.
 app.get('/api/health-db', databaseHealthCheck);
 
-// ========================================
-// 8. MAIN API ROUTES
-// ========================================
-
 app.use('/api', routes);
-
-// ========================================
-// 9. NOT FOUND HANDLER
-// ========================================
 
 app.use((req, res, next) => {
 
@@ -196,16 +158,10 @@ app.use((req, res, next) => {
 
 });
 
-// ========================================
-// 10. ERROR HANDLER
-// ========================================
-
 app.use((err, req, res, next) => {
 
     console.error('Server error:', err.message);
 
-    // Nếu errorMiddleware có xử lý riêng,
-    // tiếp tục sử dụng middleware hiện tại.
     if (typeof errorMiddleware === 'function') {
         return errorMiddleware(err, req, res, next);
     }
@@ -217,9 +173,6 @@ app.use((err, req, res, next) => {
 
 });
 
-// ========================================
-// 11. START SERVER
-// ========================================
 
 const PORT = Number(process.env.PORT) || 5000;
 
@@ -234,7 +187,6 @@ async function startServer() {
         console.log('Starting backend...');
         console.log('===================================');
 
-        // Không mở server nếu MySQL chưa kết nối.
         await db.initialize();
 
         server.listen(PORT, '0.0.0.0', () => {
@@ -260,9 +212,7 @@ async function startServer() {
     }
 }
 
-// ========================================
-// 12. GRACEFUL SHUTDOWN
-// ========================================
+
 
 async function shutdown(signal) {
 
