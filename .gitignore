@@ -10,4 +10,7 @@ backend/.env.local
 frontend/.env.local
 dist/
 build/
+.git
+.gitignore
+*.log
 .DS_Store

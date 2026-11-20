@@ -1,33 +1,31 @@
-
+// backend/config/db.js
 const mysql = require('mysql2/promise');
 const path = require('path');
 const dotenv = require('dotenv');
 
 // ========================================
 // 1. LOAD ENVIRONMENT
+// Thứ tự ưu tiên: Railway Variables > .env.local > .env
 // ========================================
-
-// Railway Variables được ưu tiên.
-// Local: .env.local được ưu tiên hơn .env.
 dotenv.config({
-    path: path.resolve(__dirname, '../.env'),
+    path: path.resolve(__dirname, '../.env.local'),
     override: false
 });
 
 dotenv.config({
-    path: path.resolve(__dirname, '../.env.local'),
+    path: path.resolve(__dirname, '../.env'),
     override: false
 });
 
 // ========================================
 // 2. READ DATABASE CONFIG
 // ========================================
-
-const AIVEN_SERVICE_URI =
+const AIVEN_SERVICE_URI = (
     process.env.DATABASE_URL ||
     process.env.AIVEN_DATABASE_URL ||
     process.env.AIVEN_DB_URL ||
-    '';
+    ''
+).trim();
 
 let parsedUri = null;
 
@@ -39,15 +37,11 @@ if (AIVEN_SERVICE_URI) {
             throw new Error('DATABASE_URL phải sử dụng giao thức mysql://');
         }
     } catch (error) {
-        throw new Error(
-            `DATABASE_URL không hợp lệ: ${error.message}`
-        );
+        throw new Error(`DATABASE_URL không hợp lệ: ${error.message}`);
     }
 }
 
-const dbHost =
-    parsedUri?.hostname ||
-    process.env.AIVEN_DB_HOST;
+const dbHost = (parsedUri?.hostname || process.env.AIVEN_DB_HOST || '').trim();
 
 const dbPort = Number(
     parsedUri?.port ||
@@ -59,27 +53,29 @@ const dbUser = decodeURIComponent(
     parsedUri?.username ||
     process.env.AIVEN_DB_USER ||
     'avnadmin'
-);
+).trim();
 
-const dbPassword =
+const dbPassword = (
     decodeURIComponent(parsedUri?.password || '') ||
-    process.env.AIVEN_DB_PASSWORD;
+    process.env.AIVEN_DB_PASSWORD ||
+    ''
+).trim();
 
-const dbName =
+const dbName = (
     parsedUri?.pathname?.replace(/^\/+/, '') ||
     process.env.AIVEN_DB_NAME ||
-    'defaultdb';
+    'defaultdb'
+).trim();
 
 const sslMode = (
     process.env.AIVEN_SSL_MODE ||
     parsedUri?.searchParams.get('ssl-mode') ||
     'REQUIRED'
-).toUpperCase();
+).trim().toUpperCase();
 
 // ========================================
 // 3. VALIDATE CONFIGURATION
 // ========================================
-
 if (!dbHost || !dbUser || !dbPassword || !dbName) {
     throw new Error(
         'Thiếu cấu hình Aiven MySQL. ' +
@@ -99,7 +95,6 @@ if (!['REQUIRED', 'DISABLED'].includes(sslMode)) {
 // ========================================
 // 4. DATABASE TABLE CONSTANTS
 // ========================================
-
 const TABLES = {
     USERS: 'users',
     AREAS: 'areas',
@@ -118,7 +113,6 @@ const TABLES = {
 // ========================================
 // 5. CREATE MYSQL POOL
 // ========================================
-
 const createAivenPool = (password) => {
     return mysql.createPool({
         host: dbHost,
@@ -126,20 +120,14 @@ const createAivenPool = (password) => {
         user: dbUser,
         password,
         database: dbName,
-
         waitForConnections: true,
         connectionLimit: 15,
         queueLimit: 0,
-
         enableKeepAlive: true,
         keepAliveInitialDelay: 10000,
-
         connectTimeout: 20000,
-
         ssl: sslMode === 'REQUIRED'
-            ? {
-                rejectUnauthorized: false
-            }
+            ? { rejectUnauthorized: false }
             : undefined
     });
 };
@@ -150,7 +138,6 @@ let initialized = false;
 // ========================================
 // 6. TEST DATABASE CONNECTION
 // ========================================
-
 const initialize = async () => {
     if (initialized) return;
 
@@ -158,9 +145,7 @@ const initialize = async () => {
 
     try {
         connection = await activePool.getConnection();
-
         await connection.query('SELECT 1');
-
         const [tables] = await connection.query('SHOW TABLES');
 
         console.log('===================================');
@@ -172,9 +157,7 @@ const initialize = async () => {
         console.log('===================================');
 
         initialized = true;
-
     } catch (error) {
-
         if (
             error.code === 'ER_ACCESS_DENIED_ERROR' &&
             process.env.AIVEN_DB_PASSWORD_FALLBACK &&
@@ -189,31 +172,18 @@ const initialize = async () => {
                 }
 
                 await activePool.end();
-
-                activePool = createAivenPool(
-                    process.env.AIVEN_DB_PASSWORD_FALLBACK
-                );
-
+                activePool = createAivenPool(process.env.AIVEN_DB_PASSWORD_FALLBACK.trim());
                 connection = await activePool.getConnection();
-
                 await connection.query('SELECT 1');
 
                 console.log('✅ Aiven MySQL connected using fallback password.');
-
                 initialized = true;
-
             } catch (retryError) {
-                throw new Error(
-                    `Aiven fallback connection failed: ${retryError.message}`
-                );
+                throw new Error(`Aiven fallback connection failed: ${retryError.message}`);
             }
-
         } else {
-            throw new Error(
-                `Aiven MySQL connection failed: ${error.message}`
-            );
+            throw new Error(`Aiven MySQL connection failed: ${error.message}`);
         }
-
     } finally {
         if (connection) {
             connection.release();
@@ -224,19 +194,12 @@ const initialize = async () => {
 // ========================================
 // 7. EXPORT DATABASE
 // ========================================
-
 module.exports = {
     initialize,
-
     query: (...args) => activePool.query(...args),
-
     execute: (...args) => activePool.execute(...args),
-
     getConnection: () => activePool.getConnection(),
-
     end: () => activePool.end(),
-
     AIVEN_SERVICE_URI,
-
     TABLES
 };
